@@ -1,2 +1,2 @@
 # BLS-Mood-Friends-backend
-Проект Samsung Innovation Campus android backend
+Проект Samsung Innovation Campus backend
