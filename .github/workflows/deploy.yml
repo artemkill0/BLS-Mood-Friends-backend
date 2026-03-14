@@ -21,18 +21,40 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
           script: |
-            cd /bls
+            # Папка проекта на сервере
+            APP_DIR="/bls"
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
 
-            # Удаляем старые контейнеры (если есть)
+            echo "🚀 Загружаем docker-compose.yml с GitHub"
+            curl -L -o docker-compose.yml \
+            https://raw.githubusercontent.com/artemkill0/BLS-Mood-Friends-backend/main/docker-compose.yml
+
+            # Создаём .env
+            cat > .env <<EOF
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            REDIS_PASSWORD=${REDIS_PASSWORD}
+            EOF
+            chmod 600 .env
+            echo "✅ .env создан"
+
+            # Останавливаем старые контейнеры
             docker compose down --remove-orphans
 
-            # Передаем переменные окружения прямо при запуске
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
-            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
+            # Подтягиваем свежие образы и запускаем контейнеры
+            docker compose pull
             docker compose up -d --force-recreate
+            echo "✅ Контейнеры обновлены"
 
-            # Логи Flask
-            docker logs flask_app --tail 20
+            # Последние 20 строк логов Flask
+            docker logs flask_app --tail 20 || true
+
+            # Чистка старых образов
+            docker image prune -af --filter "label=bls-backend"
+            echo "✅ Старые образы очищены"
+
+            # Удаляем .env для безопасности
+            rm -f .env
+            echo "🔒 .env удалён"
