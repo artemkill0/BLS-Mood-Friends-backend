@@ -10,31 +10,29 @@ jobs:
     
     - name: Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "🔐 Настройка Git SSH..."
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          echo "📁 Очистка /bls..."
+          echo "📁 Очистка..."
           rm -rf /bls/*
           
-          echo "🐙 Клонируем БЕЗ проверки хоста..."
+          echo "🐙 Клонируем..."
           cd /bls
-          GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-          git clone git@github.com:artemkill0/BLS-Mood-Friends-backend.git .
+          git clone https://artemkill0:$DEPLOY_TOKEN@github.com/artemkill0/BLS-Mood-Friends-backend.git .
           
           echo "📋 Файлы:"
           ls -la
           
-          echo "🐳 Docker Compose..."
-          if [ -f docker-compose.yml ]; then
+          echo "🐳 Docker..."
+          cd /bls
+          if [ -f "docker-compose.yml" ]; then
             docker compose up -d --build
             docker compose ps
           else
-            echo "❌ docker-compose.yml НЕ НАЙДЕН!"
+            echo "❌ НЕТ docker-compose.yml!"
             exit 1
           fi
