@@ -1,20 +1,25 @@
 name: Deploy
 
 on:
-  push:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["Build and Push Docker"]
+    types:
+      - completed
 
 jobs:
   deploy:
+
     runs-on: ubuntu-latest
 
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
+
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
@@ -22,64 +27,16 @@ jobs:
           envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
 
           script: |
-            set -e
 
-            echo "🚀 Start deploy"
-
-            mkdir -p /bls
             cd /bls
 
-            echo "🔒 Create .env"
-
-            cat > .env << ENV_EOF
+            cat > .env << EOF
             MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
             MYSQL_PASSWORD=${MYSQL_PASSWORD}
             REDIS_PASSWORD=${REDIS_PASSWORD}
-            ENV_EOF
+            EOF
 
-            chmod 600 .env
+            docker compose pull
+            docker compose up -d
 
-            if [ -z "$MYSQL_PASSWORD" ] || [ -z "$REDIS_PASSWORD" ]; then
-              echo "❌ Secrets empty"
-              exit 1
-            fi
-
-            echo "✅ Secrets OK"
-
-            echo "🧹 Cleaning old project"
-            rm -rf app
-            mkdir app
-            cd app
-
-            echo "📥 Clone repository"
-            git clone https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git .
-
-            echo "📂 Files:"
-            ls -la
-
-            if [ ! -f docker-compose.yml ]; then
-              echo "❌ docker-compose.yml not found"
-              exit 1
-            fi
-
-            echo "🐳 Docker compose down"
-            docker compose --env-file ../.env down || true
-
-            echo "🐳 Docker build"
-            docker compose --env-file ../.env build
-
-            echo "🐳 Docker up"
-            docker compose --env-file ../.env up -d
-
-            echo "⏳ Wait containers"
-            sleep 10
-
-            docker compose ps
-
-            echo "📜 Flask logs"
-            docker logs flask_app --tail 20 || true
-
-            echo "🔒 Remove env"
-            rm -f ../.env
-
-            echo "✅ Deploy finished"
+            docker image prune -f
