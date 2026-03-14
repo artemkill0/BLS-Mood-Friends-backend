@@ -22,7 +22,6 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Папка проекта на сервере
             APP_DIR="/bls"
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
@@ -31,30 +30,26 @@ jobs:
             curl -L -o docker-compose.yml \
             https://raw.githubusercontent.com/artemkill0/BLS-Mood-Friends-backend/main/docker-compose.yml
 
-            # Создаём .env
-            cat > .env <<EOF
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-            MYSQL_PASSWORD=${MYSQL_PASSWORD}
-            REDIS_PASSWORD=${REDIS_PASSWORD}
-            EOF
-            chmod 600 .env
-            echo "✅ .env создан"
+            echo "✅ Файл docker-compose.yml загружен"
 
-            # Останавливаем старые контейнеры
+            # Передаём переменные напрямую в команду docker compose
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
+            REDIS_PASSWORD=${REDIS_PASSWORD} \
             docker compose down --remove-orphans
 
-            # Подтягиваем свежие образы и запускаем контейнеры
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
+            REDIS_PASSWORD=${REDIS_PASSWORD} \
             docker compose pull
+
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
+            REDIS_PASSWORD=${REDIS_PASSWORD} \
             docker compose up -d --force-recreate
+
             echo "✅ Контейнеры обновлены"
 
-            # Последние 20 строк логов Flask
             docker logs flask_app --tail 20 || true
 
-            # Чистка старых образов
-            docker image prune -af --filter "label=bls-backend"
-            echo "✅ Старые образы очищены"
-
-            # Удаляем .env для безопасности
-            rm -f .env
-            echo "🔒 .env удалён"
+            echo "✅ Деплой завершён"
