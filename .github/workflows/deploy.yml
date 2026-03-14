@@ -1,4 +1,4 @@
-name: Deploy BLS Backend
+name: Deploy
 on:
   push:
     branches: [main]
@@ -6,20 +6,29 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
-    
-    - name: Deploy
+    - name: Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
-      env:
-        DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          rm -rf /bls/*
-          cd /bls
-          git clone "https://artemkill0:$DEPLOY_TOKEN@github.com/artemkill0/BLS-Mood-Friends-backend.git" .
+          cd /bls || mkdir -p /bls && cd /bls
+          rm -rf .git
+          git init
+          git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
+          git fetch origin
+          git checkout main
+          git pull origin main
+          
+          echo "=== ФАЙЛЫ ==="
           ls -la
-          cd /bls
-          test -f docker-compose.yml && docker compose up -d --build || echo "NO docker-compose.yml"
+          
+          if [ -f "docker-compose.yml" ]; then
+            docker compose down || true
+            docker compose up -d --build
+            docker compose ps
+          else
+            echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
+            exit 1
+          fi
