@@ -41,7 +41,8 @@ jobs:
             docker pull ghcr.io/artemkill0/bls-backend:latest
 
             # Запускаем контейнеры через Docker Compose
-            docker compose up -d
+            docker compose pull
+            docker compose up -d --force-recreate
             echo "✅ Контейнеры запущены"
 
             # Логи Flask (последние 20 строк)

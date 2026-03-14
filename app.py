@@ -25,7 +25,7 @@ redis_client = redis.Redis(
 
 @app.route('/')
 def hello():
-    return "Сервер работает"
+    return "Сервер работает!"
 
 @app.route('/test-db')
 def test_db():
