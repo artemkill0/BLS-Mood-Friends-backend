@@ -21,6 +21,11 @@ jobs:
           git checkout main
           git pull origin main
           
+          # 🔒 Передаем Secrets в docker-compose
+          export MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}"
+          export MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}"
+          export REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
+          
           echo "=== ФАЙЛЫ ==="
           ls -la
           
@@ -28,6 +33,7 @@ jobs:
             docker compose down || true
             docker compose up -d --build
             docker compose ps
+            echo "✅ Деплой завершен!"
           else
             echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
             exit 1
