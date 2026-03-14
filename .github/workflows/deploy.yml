@@ -8,44 +8,65 @@ jobs:
     steps:
     - name: Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+        MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD  # ← КРИТИЧНО!
         script: |
           cd /bls || mkdir -p /bls && cd /bls
           
+          # 🔒 Создаем .env файл с secrets (ЗАЩИЩАЕМ!)
+          cat > .env << 'ENV_EOF'
+          MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+          MYSQL_PASSWORD=${MYSQL_PASSWORD}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          ENV_EOF
+          
+          # ✅ Проверяем что secrets НЕ пустые
+          if [ -z "$REDIS_PASSWORD" ] || [ -z "$MYSQL_PASSWORD" ]; then
+            echo "❌ Secrets пустые!"
+            cat .env
+            exit 1
+          fi
+          
+          echo "✅ Secrets установлены (длина REDIS_PASSWORD: ${#REDIS_PASSWORD})"
+          chmod 600 .env
+          
+          # Git синхронизация
           git config --global init.defaultBranch main
           rm -rf .git
-          
-          ping -c 1 8.8.8.8 || echo "❌ Нет интернета"
-          nslookup github.com || echo "❌ DNS не работает"
+          ping -c 1 8.8.8.8 || echo "⚠️ Нет интернета"
           
           git init
           git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
-          
-          # Полная синхронизация
           git fetch origin main || git fetch origin
           git checkout main || git checkout -b main origin/main
           git pull origin main --force
           
-          # 🔒 Secrets для docker-compose
-          export MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}"
-          export MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}"
-          export REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
-          
           echo "=== ФАЙЛЫ ==="
           ls -la
-          cat docker-compose.yml | head -20
+          echo "=== .env (первые строки) ==="
+          head -n 3 .env
           
           if [ -f "docker-compose.yml" ]; then
-            docker compose down || true
-            docker compose up -d --build
+            echo "🔄 Docker Compose с .env..."
+            docker compose --env-file .env down || true
+            docker compose --env-file .env up -d --build
             sleep 10
-            docker compose ps
-            docker logs flask_app --tail 20
+            docker compose --env-file .env ps
+            echo "=== Flask логи ==="
+            docker logs flask_app --tail 10 || true
             echo "✅ Деплой завершен!"
           else
             echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
             exit 1
           fi
+          
+          # 🧹 Удаляем .env для безопасности
+          rm -f .env
+          echo "🔒 .env удален"

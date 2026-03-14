@@ -16,7 +16,7 @@ mysql_config = {
     'database': os.getenv('MYSQL_DB', 'flask_app')
 }
 
-# Подключение к Redis
+
 redis_client = redis.Redis(
     host=os.getenv('REDIS_HOST', 'redis'),
     port=int(os.getenv('REDIS_PORT', 6379)),
@@ -25,7 +25,7 @@ redis_client = redis.Redis(
 
 @app.route('/')
 def hello():
-    return "Flask + MySQL + Redis работает!"
+    return "Сервер работает"
 
 @app.route('/test-db')
 def test_db():
