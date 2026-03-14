@@ -1,15 +1,25 @@
+version: '3.8'
+
 services:
   mysql:
     image: mysql:8.0
     container_name: flask_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: flask_app
       MYSQL_USER: flask_user
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    command: --bind-address=0.0.0.0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
     networks:
       - flask_network
 
@@ -18,14 +28,24 @@ services:
     container_name: flask_redis
     restart: unless-stopped
     command: >
-      redis-server --requirepass "${REDIS_PASSWORD}"
+      redis-server 
+      --bind 0.0.0.0
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
     networks:
       - flask_network
 
   flask:
-    image: ghcr.io/artemkill0/bls-backend:latest
+    build: .
     container_name: flask_app
     restart: unless-stopped
     ports:
@@ -33,14 +53,18 @@ services:
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: flask_user
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DB: flask_app
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
     networks:
       - flask_network
 
@@ -50,3 +74,4 @@ volumes:
 
 networks:
   flask_network:
+    driver: bridge

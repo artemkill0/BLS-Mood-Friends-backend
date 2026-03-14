@@ -1,10 +1,8 @@
 name: Deploy
 
 on:
-  workflow_run:
-    workflows: ["Build and Push Docker"]
-    types:
-      - completed
+  push:
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -21,35 +19,67 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
+
           script: |
-            APP_DIR="/bls"
-            mkdir -p "$APP_DIR"
-            cd "$APP_DIR"
+            set -e
 
-            echo "🚀 Загружаем docker-compose.yml с GitHub"
-            curl -L -o docker-compose.yml \
-            https://raw.githubusercontent.com/artemkill0/BLS-Mood-Friends-backend/main/docker-compose.yml
+            echo "🚀 Start deploy"
 
-            echo "✅ Файл docker-compose.yml загружен"
+            mkdir -p /bls
+            cd /bls
 
-            # Передаём переменные напрямую в команду docker compose
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
-            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
-            docker compose down --remove-orphans
+            echo "🔒 Create .env"
 
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
-            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
-            docker compose pull
+            cat > .env << ENV_EOF
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            REDIS_PASSWORD=${REDIS_PASSWORD}
+            ENV_EOF
 
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
-            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
-            REDIS_PASSWORD=${REDIS_PASSWORD} \
-            docker compose up -d --force-recreate
+            chmod 600 .env
 
-            echo "✅ Контейнеры обновлены"
+            if [ -z "$MYSQL_PASSWORD" ] || [ -z "$REDIS_PASSWORD" ]; then
+              echo "❌ Secrets empty"
+              exit 1
+            fi
 
+            echo "✅ Secrets OK"
+
+            echo "🧹 Cleaning old project"
+            rm -rf app
+            mkdir app
+            cd app
+
+            echo "📥 Clone repository"
+            git clone https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git .
+
+            echo "📂 Files:"
+            ls -la
+
+            if [ ! -f docker-compose.yml ]; then
+              echo "❌ docker-compose.yml not found"
+              exit 1
+            fi
+
+            echo "🐳 Docker compose down"
+            docker compose --env-file ../.env down || true
+
+            echo "🐳 Docker build"
+            docker compose --env-file ../.env build
+
+            echo "🐳 Docker up"
+            docker compose --env-file ../.env up -d
+
+            echo "⏳ Wait containers"
+            sleep 10
+
+            docker compose ps
+
+            echo "📜 Flask logs"
             docker logs flask_app --tail 20 || true
 
-            echo "✅ Деплой завершён"
+            echo "🔒 Remove env"
+            rm -f ../.env
+
+            echo "✅ Deploy finished"
