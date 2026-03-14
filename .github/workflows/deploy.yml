@@ -14,25 +14,36 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /bls || mkdir -p /bls && cd /bls
+          
+          git config --global init.defaultBranch main
           rm -rf .git
+          
+          ping -c 1 8.8.8.8 || echo "❌ Нет интернета"
+          nslookup github.com || echo "❌ DNS не работает"
+          
           git init
           git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
-          git fetch origin
-          git checkout main
-          git pull origin main
           
-          # 🔒 Передаем Secrets в docker-compose
+          # Полная синхронизация
+          git fetch origin main || git fetch origin
+          git checkout main || git checkout -b main origin/main
+          git pull origin main --force
+          
+          # 🔒 Secrets для docker-compose
           export MYSQL_ROOT_PASSWORD="${{ secrets.MYSQL_ROOT_PASSWORD }}"
           export MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}"
           export REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
           
           echo "=== ФАЙЛЫ ==="
           ls -la
+          cat docker-compose.yml | head -20
           
           if [ -f "docker-compose.yml" ]; then
             docker compose down || true
             docker compose up -d --build
+            sleep 10
             docker compose ps
+            docker logs flask_app --tail 20
             echo "✅ Деплой завершен!"
           else
             echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
