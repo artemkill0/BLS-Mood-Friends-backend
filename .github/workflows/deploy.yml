@@ -8,7 +8,6 @@ on:
 
 jobs:
   deploy:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -27,16 +26,32 @@ jobs:
           envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
 
           script: |
-
             cd /bls
 
-            cat > .env << EOF
+            # Создаём .env без лишних пробелов
+            cat > .env <<EOF
             MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
             MYSQL_PASSWORD=${MYSQL_PASSWORD}
             REDIS_PASSWORD=${REDIS_PASSWORD}
             EOF
+            chmod 600 .env
+            echo "✅ .env создан"
 
-            docker compose pull
+            # Тянем свежий образ с GHCR
+            docker pull ghcr.io/artemkill0/bls-backend:latest
+
+            # Запускаем контейнеры через Docker Compose
             docker compose up -d
+            echo "✅ Контейнеры запущены"
 
-            docker image prune -f
+            # Логи Flask (последние 20 строк)
+            echo "📜 Логи Flask:"
+            docker logs flask_app --tail 20 || true
+
+            # Очистка старых неиспользуемых образов (без удаления нужных)
+            docker image prune -af --filter "label=bls-backend"
+            echo "✅ Старые образы очищены"
+
+            # Удаляем .env
+            rm -f .env
+            echo "🔒 .env удалён"
