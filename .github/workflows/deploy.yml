@@ -1,72 +1,78 @@
 name: Deploy
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy to Server
-      uses: appleboy/ssh-action@v1.0.3
-      env:
-        MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-        MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
-        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-      with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD  # ← КРИТИЧНО!
-        script: |
-          cd /bls || mkdir -p /bls && cd /bls
-          
-          # 🔒 Создаем .env файл с secrets (ЗАЩИЩАЕМ!)
-          cat > .env << 'ENV_EOF'
-          MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-          MYSQL_PASSWORD=${MYSQL_PASSWORD}
-          REDIS_PASSWORD=${REDIS_PASSWORD}
-          ENV_EOF
-          
-          # ✅ Проверяем что secrets НЕ пустые
-          if [ -z "$REDIS_PASSWORD" ] || [ -z "$MYSQL_PASSWORD" ]; then
-            echo "❌ Secrets пустые!"
-            cat .env
-            exit 1
-          fi
-          
-          echo "✅ Secrets установлены (длина REDIS_PASSWORD: ${#REDIS_PASSWORD})"
-          chmod 600 .env
-          
-          # Git синхронизация
-          git config --global init.defaultBranch main
-          rm -rf .git
-          ping -c 1 8.8.8.8 || echo "⚠️ Нет интернета"
-          
-          git init
-          git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
-          git fetch origin main || git fetch origin
-          git checkout main || git checkout -b main origin/main
-          git pull origin main --force
-          
-          echo "=== ФАЙЛЫ ==="
-          ls -la
-          echo "=== .env (первые строки) ==="
-          head -n 3 .env
-          
-          if [ -f "docker-compose.yml" ]; then
-            echo "🔄 Docker Compose с .env..."
-            docker compose --env-file .env down || true
-            docker compose --env-file .env up -d --build
-            sleep 10
-            docker compose --env-file .env ps
-            echo "=== Flask логи ==="
-            docker logs flask_app --tail 10 || true
-            echo "✅ Деплой завершен!"
-          else
-            echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
-            exit 1
-          fi
-          
-          # 🧹 Удаляем .env для безопасности
-          rm -f .env
-          echo "🔒 .env удален"
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
+          script: |
+            cd /bls || mkdir -p /bls && cd /bls
+
+            # Create .env file with secrets (ensure it's protected)
+            cat > .env << 'ENV_EOF'
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            REDIS_PASSWORD=${REDIS_PASSWORD}
+            ENV_EOF
+
+            # Check if secrets are set
+            if [ -z "$REDIS_PASSWORD" ] || [ -z "$MYSQL_PASSWORD" ]; then
+              echo "❌ Secrets are empty!"
+              cat .env
+              exit 1
+            fi
+
+            echo "✅ Secrets are set (REDIS_PASSWORD length: ${#REDIS_PASSWORD})"
+            chmod 600 .env
+
+            # Sync Git repository
+            git config --global init.defaultBranch main
+            rm -rf .git
+            ping -c 1 8.8.8.8 || echo "⚠️ No internet"
+
+            git init
+            git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
+            git fetch origin main || git fetch origin
+            git checkout main || git checkout -b main origin/main
+            git pull origin main --force
+
+            echo "=== Files ==="
+            ls -la
+            echo "=== .env (first few lines) ==="
+            head -n 3 .env
+
+            # Check if docker-compose.yml exists
+            if [ -f "docker-compose.yml" ]; then
+              echo "🔄 Docker Compose with .env..."
+              docker compose --env-file .env down || true
+              docker compose --env-file .env up -d --build
+              sleep 10
+              docker compose --env-file .env ps
+              echo "=== Flask logs ==="
+              docker logs flask_app --tail 10 || true
+              echo "✅ Deployment completed!"
+            else
+              echo "❌ docker-compose.yml is missing"
+              exit 1
+            fi
+
+            # Delete .env file for security reasons
+            rm -f .env
+            echo "🔒 .env deleted"

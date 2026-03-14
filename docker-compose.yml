@@ -16,7 +16,10 @@ services:
       - mysql_data:/var/lib/mysql
     command: --bind-address=0.0.0.0
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
     networks:
       - flask_network
 
@@ -35,6 +38,9 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      retries: 3
+      timeout: 10s
     networks:
       - flask_network
 
