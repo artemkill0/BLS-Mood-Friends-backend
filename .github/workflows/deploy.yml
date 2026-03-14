@@ -55,4 +55,4 @@ jobs:
 
             # Удаляем .env
             rm -f .env
-            echo "🔒 .env удалён"
+            echo "🔒 .env удалён" 
