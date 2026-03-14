@@ -15,21 +15,26 @@ jobs:
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "📁 Очистка /bls..."
-          rm -rf /bls/* /bls/.[!.]*  # Удаляем все включая скрытые
+          echo "🔐 Настройка SSH для GitHub..."
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
           
-          echo "🐙 Клонируем через SSH (Deploy Key)..."
+          echo "📁 Очистка /bls..."
+          rm -rf /bls/* /bls/.[!.]* 
+          
+          echo "🐙 Клонируем..."
           cd /bls
           git clone git@github.com:artemkill0/BLS-Mood-Friends-backend.git .
           
-          echo "📋 Проверяем файлы..."
+          echo "📋 Файлы:"
           ls -la /bls
           
-          echo "🐳 Docker Compose..."
+          echo "🐳 Docker..."
+          cd /bls
           if [ -f "docker-compose.yml" ]; then
             docker compose up -d --build
             docker compose ps
           else
-            echo "❌ docker-compose.yml НЕ НАЙДЕН!"
+            echo "❌ docker-compose.yml не найден!"
             exit 1
           fi
