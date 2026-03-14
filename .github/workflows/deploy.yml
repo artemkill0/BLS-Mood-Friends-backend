@@ -13,46 +13,26 @@ jobs:
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
-
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
-
           script: |
             cd /bls
 
-            # Создаём .env без лишних пробелов
-            cat > .env <<EOF
-            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-            MYSQL_PASSWORD=${MYSQL_PASSWORD}
-            REDIS_PASSWORD=${REDIS_PASSWORD}
-            EOF
-            chmod 600 .env
-            echo "✅ .env создан"
+            # Удаляем старые контейнеры (если есть)
+            docker compose down --remove-orphans
 
-            # Тянем свежий образ с GHCR
-            docker pull ghcr.io/artemkill0/bls-backend:latest
-
-            # Запускаем контейнеры через Docker Compose
-            docker compose pull
+            # Передаем переменные окружения прямо при запуске
+            MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+            MYSQL_PASSWORD=${MYSQL_PASSWORD} \
+            REDIS_PASSWORD=${REDIS_PASSWORD} \
             docker compose up -d --force-recreate
-            echo "✅ Контейнеры запущены"
 
-            # Логи Flask (последние 20 строк)
-            echo "📜 Логи Flask:"
-            docker logs flask_app --tail 20 || true
-
-            # Очистка старых неиспользуемых образов (без удаления нужных)
-            docker image prune -af --filter "label=bls-backend"
-            echo "✅ Старые образы очищены"
-
-            # Удаляем .env
-            rm -f .env
-            echo "🔒 .env удалён" 
+            # Логи Flask
+            docker logs flask_app --tail 20
