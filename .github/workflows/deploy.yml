@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     
-    - name: Deploy to Server
+    - name: Deploy
       uses: appleboy/ssh-action@v1.0.3
       env:
         DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
@@ -17,22 +17,9 @@ jobs:
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "📁 Очистка..."
           rm -rf /bls/*
-          
-          echo "🐙 Клонируем..."
           cd /bls
-          git clone https://artemkill0:$DEPLOY_TOKEN@github.com/artemkill0/BLS-Mood-Friends-backend.git .
-          
-          echo "📋 Файлы:"
+          git clone "https://artemkill0:$DEPLOY_TOKEN@github.com/artemkill0/BLS-Mood-Friends-backend.git" .
           ls -la
-          
-          echo "🐳 Docker..."
           cd /bls
-          if [ -f "docker-compose.yml" ]; then
-            docker compose up -d --build
-            docker compose ps
-          else
-            echo "❌ НЕТ docker-compose.yml!"
-            exit 1
-          fi
+          test -f docker-compose.yml && docker compose up -d --build || echo "NO docker-compose.yml"
