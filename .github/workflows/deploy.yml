@@ -16,57 +16,73 @@ jobs:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD  # ← КРИТИЧНО!
+        envs: MYSQL_ROOT_PASSWORD,MYSQL_PASSWORD,REDIS_PASSWORD
         script: |
           cd /bls || mkdir -p /bls && cd /bls
           
-          # 🔒 Создаем .env файл с secrets (ЗАЩИЩАЕМ!)
-          cat > .env << 'ENV_EOF'
-          MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-          MYSQL_PASSWORD=${MYSQL_PASSWORD}
-          REDIS_PASSWORD=${REDIS_PASSWORD}
-          ENV_EOF
-          
-          # ✅ Проверяем что secrets НЕ пустые
+          # ✅ Проверяем secrets
+          echo "🔍 REDIS_PASSWORD length: ${#REDIS_PASSWORD}"
           if [ -z "$REDIS_PASSWORD" ] || [ -z "$MYSQL_PASSWORD" ]; then
             echo "❌ Secrets пустые!"
-            cat .env
             exit 1
           fi
           
-          echo "✅ Secrets установлены (длина REDIS_PASSWORD: ${#REDIS_PASSWORD})"
+          # ✅ .env БЕЗ single quotes (подставит переменные!)
+          cat > .env << EOF
+          MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+          MYSQL_PASSWORD=$MYSQL_PASSWORD
+          REDIS_PASSWORD=$REDIS_PASSWORD
+          EOF
+          
           chmod 600 .env
+          echo "✅ .env создан"
+          
+          # 🧹 ОЧИЩАЕМ ВСЕ файлы перед git
+          rm -rf * .git .env.bak
+          mv .env .env  # Сохраняем .env
           
           # Git синхронизация
           git config --global init.defaultBranch main
-          rm -rf .git
           ping -c 1 8.8.8.8 || echo "⚠️ Нет интернета"
           
           git init
           git remote add origin https://artemkill0:${{ secrets.DEPLOY_TOKEN }}@github.com/artemkill0/BLS-Mood-Friends-backend.git
           git fetch origin main || git fetch origin
           git checkout main || git checkout -b main origin/main
-          git pull origin main --force
           
-          echo "=== ФАЙЛЫ ==="
+          echo "=== ФАЙЛЫ после git ==="
           ls -la
-          echo "=== .env (первые строки) ==="
-          head -n 3 .env
+          
+          echo "=== .env содержимое ==="
+          grep REDIS .env
           
           if [ -f "docker-compose.yml" ]; then
-            echo "🔄 Docker Compose с .env..."
+            echo "🔄 Docker Compose с --env-file..."
             docker compose --env-file .env down || true
             docker compose --env-file .env up -d --build
-            sleep 10
+            sleep 15
+            
+            echo "=== Статус контейнеров ==="
             docker compose --env-file .env ps
+            
+            echo "=== Тест Redis защиты ==="
+            if docker exec flask_redis redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null; then
+              echo "✅ Redis защищен паролем!"
+            else
+              echo "❌ Redis уязвим - проверь логи!"
+              docker logs flask_redis | tail -5
+            fi
+            
             echo "=== Flask логи ==="
             docker logs flask_app --tail 10 || true
-            echo "✅ Деплой завершен!"
+            
+            echo "✅ ДЕПЛОЙ ЗАВЕРШЕН!"
           else
             echo "❌ docker-compose.yml ОТСУТСТВУЕТ"
+            ls -la
             exit 1
           fi
           
-          # 🧹 Удаляем .env для безопасности
+          # 🔒 Удаляем .env
           rm -f .env
           echo "🔒 .env удален"
