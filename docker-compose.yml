@@ -23,14 +23,13 @@ services:
     image: redis:7-alpine
     container_name: flask_redis
     restart: unless-stopped
+    command: redis-server --bind 0.0.0.0 --protected-mode no
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      timeout: 20s
-      retries: 10
 
   flask:
     build: .
