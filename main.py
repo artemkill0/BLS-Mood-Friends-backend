@@ -148,7 +148,6 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
     return user
 
-
 @app.get("/api/user/mood")
 def get_mood(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
