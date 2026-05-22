@@ -7,7 +7,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
 
-# ---------- Конфигурация базы данных ----------
 SQLALCHEMY_DATABASE_URL = "sqlite:///./moodfriends.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -15,7 +14,6 @@ Base = declarative_base()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ---------- Модели ----------
 class User(Base):
     __tablename__ = "users"
 
@@ -45,7 +43,6 @@ class FriendLink(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# ---------- Схемы ----------
 class UserRegister(BaseModel):
     username: str
     email: str
@@ -79,7 +76,6 @@ class UserResponse(BaseModel):
     mood: int
 
 
-# ---------- Зависимости ----------
 def get_db():
     db = SessionLocal()
     try:
@@ -96,7 +92,6 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-# ---------- Приложение ----------
 app = FastAPI(title="Mood Friends API", version="1.1")
 
 app.add_middleware(
@@ -107,7 +102,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- AUTH ----------
 @app.post("/api/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: UserRegister, db: Session = Depends(get_db)):
     existing = db.query(User).filter(
@@ -145,7 +139,6 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     }
 
 
-# ---------- USER ----------
 @app.get("/api/users/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
@@ -179,7 +172,6 @@ def update_mood(user_id: int, mood_data: MoodUpdate, db: Session = Depends(get_d
     return {"user_id": user.id, "mood": user.mood}
 
 
-# ---------- FRIENDS ----------
 @app.get("/api/friends", response_model=List[FriendResponse])
 def get_friends(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
@@ -218,7 +210,6 @@ def add_friend(data: AddFriendRequest, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Already friends")
 
-    # Добавляем в обе стороны
     db.add(FriendLink(user_id=data.user_id, friend_id=data.friend_id))
     db.add(FriendLink(user_id=data.friend_id, friend_id=data.user_id))
 
@@ -251,7 +242,6 @@ def remove_friend(data: AddFriendRequest, db: Session = Depends(get_db)):
     return {"message": "Friend removed"}
 
 
-# ---------- Тестовые данные ----------
 def init_test_data():
     db = SessionLocal()
 
@@ -279,7 +269,6 @@ def on_startup():
     init_test_data()
 
 
-# ---------- Запуск ----------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
